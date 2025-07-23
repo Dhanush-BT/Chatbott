@@ -5,13 +5,6 @@
   </a>
 </p>
 
-<p align="center">
-  <a href="https://your-project-url.com/demo">Demo</a> ·
-  <a href="https://your-project-url.com/docs">Documentation</a> ·
-  <a href="https://your-project-url.com/examples">Examples</a> ·
-  <a href="https://discord.gg/your-community">Community</a> ·
-  <a href="mailto:your@email.com">Contact Us</a>
-</p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Multilingual-Supported-brightgreen" alt="Language Support Badge" />
