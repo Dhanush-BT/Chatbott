@@ -74,10 +74,11 @@ def chunk_text(text: str, max_chunk_size: int = 3500, overlap_size: int = 200):
 
 
 # Initialize embedding model and Qdrant client
-embedder = SentenceTransformer("all-MiniLM-L6-v2")  # 384-D vectors
-qclient = QdrantClient(":memory:")  # Use ":memory:" for demo, or "http://localhost:6333" for Docker
 
-# Create collection if it doesn't exist
+embedder = SentenceTransformer("all-MiniLM-L6-v2")  
+qclient = QdrantClient(":memory:")  
+
+
 collection_name = "documind_chunks"
 if not qclient.collection_exists(collection_name):
     qclient.create_collection(
@@ -90,10 +91,9 @@ def store_chunks_in_qdrant(chunks: List[str], filename: str):
     """
     Store document chunks as vectors in Qdrant
     """
-    # Generate embeddings for all chunks
+
     vectors = embedder.encode(chunks, show_progress_bar=False)
-    
-    # Create payloads with metadata
+
     payloads = [
         {
             "filename": filename,
@@ -104,7 +104,6 @@ def store_chunks_in_qdrant(chunks: List[str], filename: str):
         for idx, chunk in enumerate(chunks)
     ]
     
-    # Create points for Qdrant
     points = [
         qmodels.PointStruct(
             id=str(uuid4()),
@@ -114,7 +113,7 @@ def store_chunks_in_qdrant(chunks: List[str], filename: str):
         for vec, payload in zip(vectors, payloads)
     ]
     
-    # Upsert points to Qdrant
+
     qclient.upsert(collection_name=collection_name, points=points)
     
     return len(points)
@@ -124,10 +123,10 @@ def search_similar_chunks(question: str, limit: int = 3):
     """
     Search for similar chunks using vector similarity
     """
-    # Generate embedding for the question
+ 
     question_vector = embedder.encode(question)
     
-    # Search in Qdrant
+
     hits = qclient.search(
         collection_name=collection_name,
         query_vector=question_vector.tolist(),
@@ -141,7 +140,7 @@ def ask_query_with_qdrant(question: str):
     """
     Answer question using Qdrant vector search
     """
-    # Search for similar chunks
+
     hits = search_similar_chunks(question, limit=3)
     
     if not hits:
@@ -152,8 +151,7 @@ def ask_query_with_qdrant(question: str):
             "source": "No Match",
             "similarity_scores": []
         }
-    
-    # Combine top chunks as context
+
     context_chunks = []
     similarity_scores = []
     total_length = 0
@@ -165,7 +163,7 @@ def ask_query_with_qdrant(question: str):
     
     context = "\n\n".join(context_chunks)
     
-    # Create system prompt with context
+
     system_prompt = (
         "You are a helpful assistant. Answer the question based strictly on the document context provided below. "
         "Provide exact content from the document when possible. If possible, provide tabulated answers with 100% accuracy. "
@@ -174,7 +172,7 @@ def ask_query_with_qdrant(question: str):
         f"QUESTION: {question}"
     )
     
-    # Get response from Ollama
+
     response = ollama.chat(
         model='gemma2:2b',
         messages=[{"role": "user", "content": system_prompt}]
@@ -209,7 +207,7 @@ def clear_qdrant_collection():
         return False
 
 
-# Global variables to store document content
+
 doc_content = ""
 current_filename = ""
 chunks_stored = 0
@@ -222,18 +220,17 @@ def upload_file(file):
         return "No file uploaded", "Please upload a PDF or DOCX file to start chatting."
 
     try:
-        # Clear previous document from Qdrant
+
         clear_qdrant_collection()
-        
-        # Extract text from file
+
         file_data = extract_file_to_json(file.name)
         doc_content = file_data['content']
         current_filename = file_data['filename']
         
-        # Create chunks
+        
         chunks = chunk_text(doc_content)
         
-        # Store chunks in Qdrant
+        
         chunks_stored = store_chunks_in_qdrant(chunks, current_filename)
         
         status_msg = f"Document '{current_filename}' loaded successfully! {chunks_stored} chunks vectorized."
@@ -257,18 +254,18 @@ def chat_with_document(message, history):
     try:
         start_time = time.time()
         
-        # Use Qdrant-based search instead of chunk iteration
+        
         answer, metadata = ask_query_with_qdrant(message)
         
         end_time = time.time()
 
-        # Resource usage
+        
         process = psutil.Process(os.getpid())
         mem_mb = process.memory_info().rss / (1024 ** 2)
         cpu_percent = psutil.cpu_percent(interval=0.1)
         response_time = end_time - start_time
 
-        # Enhanced metadata with similarity scores
+        
         meta_info = (
             f"\n---\n"
             f"**Answer Source:** {metadata['source']}\n"
@@ -297,21 +294,21 @@ def get_document_info():
     word_count = len(doc_content.split())
     char_count = len(doc_content)
     
-    # Get collection info from Qdrant
+    
     collection_info = qclient.get_collection(collection_name=collection_name)
     vector_count = collection_info.points_count
     
     return f"**{current_filename}**\n\n**Document Stats:**\n- Characters: {char_count:,}\n- Words: {word_count:,}\n- Estimated reading time: {word_count // 200} minutes\n- Vector chunks stored: {vector_count}\n- Collection status: Active"
 
 
-# Create Gradio interface
+
 with gr.Blocks(title="DocuMind", theme=gr.themes.Soft()) as demo:
     gr.HTML("<h1 style='text-align: center; color: #2563eb;'>DocuMind</h1>")
     gr.HTML("<p style='text-align: center; color: #64748b;'>Upload a PDF or DOCX file and ask questions using semantic vector search powered by Qdrant</p>")
 
     with gr.Row():
         with gr.Column(scale=1):
-            # File upload section
+            
             gr.HTML("<h3>Upload Document</h3>")
             file_input = gr.File(
                 label="Select PDF or DOCX file",
@@ -325,13 +322,12 @@ with gr.Blocks(title="DocuMind", theme=gr.themes.Soft()) as demo:
                 value="No file uploaded yet..."
             )
 
-            # Document info section
+            
             gr.HTML("<h3>Document Info</h3>")
             doc_info = gr.Markdown("No document loaded")
             
 
         with gr.Column(scale=2):
-            # Chat section
             gr.HTML("<h3>Chat with Document</h3>")
             chatbot = gr.Chatbot(
                 height=450,
@@ -348,7 +344,6 @@ with gr.Blocks(title="DocuMind", theme=gr.themes.Soft()) as demo:
 
             clear_btn = gr.Button("Clear Chat", variant="secondary", size="sm")
 
-    # Event handlers
     file_input.upload(
         fn=upload_file,
         inputs=[file_input],
